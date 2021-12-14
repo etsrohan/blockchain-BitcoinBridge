@@ -8,7 +8,7 @@ contract ClothingSupplyChain{
     enum BatchType {Unknown, Cotton, Polyester}
     enum BatchState {NotCreated, Processing, Complete, Shipped}
     enum ItemType {Unknown, TShirt, Shirt, Pants}
-    enum SaleState {NotSold, Sold, Returned}
+    enum ItemState {NotCreated, Created, Sold, Returned}
 
     // STRUCTS
     // Struct to represent a delivery of raw materials
@@ -30,18 +30,18 @@ contract ClothingSupplyChain{
         BatchState state;
         uint256 manufacture_date;
         uint256 machine_id;
-        uint256 num_items;
+        uint256 num_clothes;
         uint256 price_per;          // price in cents per clothing made
         uint256 cost_per;           // cost in cents per clothing made
     }
 
     // Struct to represent an individual item
     struct Item {
-        SaleState state;
+        ItemState state;
+        uint256 batch_no;
         uint256 receipt_number;
         uint256 retail_price;
         uint256 date_of_sale;
-        ManufactureBatch manufacturing;
     }
 
     // EVENTS
@@ -53,7 +53,7 @@ contract ClothingSupplyChain{
     event BatchCompleted(uint256 indexed batch_id, uint256 num_items);
     event DeliveryReceived(uint256 indexed delivery_id);
     event DeliveryCanceled(uint256 indexed delivery_id);
-    event NewItemCreated(uint256 indexed item_id, uint8 item_type);
+    event NewItemsCreated(uint256 indexed item_start_id, uint256 indexed item_end_id, BatchType fabric, ItemType item_type);
 
     // MODIFIERS
     modifier delivery_order_created (uint256 delivery_id){
@@ -63,6 +63,11 @@ contract ClothingSupplyChain{
 
     modifier batch_processing (uint256 batch_id){
         require (batches[batch_id].state == BatchState.Processing);
+        _;
+    }
+
+    modifier batch_complete (uint256 batch_id){
+        require (batches[batch_id].state == BatchState.Complete);
         _;
     }
 
@@ -235,16 +240,72 @@ contract ClothingSupplyChain{
         
         batches[batch_id].state = BatchState.Complete;
         batches[batch_id].manufacture_date = block.timestamp;
-        batches[batch_id].num_items = batch_output;
+        batches[batch_id].num_clothes = batch_output;
         batches[batch_id].price_per = price;
         batches[batch_id].cost_per = cost;
 
         // Add the appropriate number of apparel to the num_apparel array
-        
-        // Create Items with the tagged details
+        add_apparel(batch_id);
 
-        emit BatchCompleted (batch_id, batches[batch_id].num_items);
+        // Create Items with the tagged details
+        create_item(batch_id);
+
+        emit BatchCompleted (batch_id, batches[batch_id].num_clothes);
         return true;
+    }
+
+    // Function to help add num of apparels to num_apparel array created by a batch
+    function add_apparel(
+        /**Arguments**/
+        uint256 batch_id
+    )
+        internal
+        batch_complete(batch_id)
+    {
+        if ((batches[batch_id].fabric_type == BatchType.Cotton) &&
+            (batches[batch_id].item_type == ItemType.TShirt)){
+            num_apparel[0] += batches[batch_id].num_clothes;
+        } else if ((batches[batch_id].fabric_type == BatchType.Polyester) &&
+                   (batches[batch_id].item_type == ItemType.TShirt)){
+            num_apparel[1] += batches[batch_id].num_clothes;
+        } else if ((batches[batch_id].fabric_type == BatchType.Cotton) &&
+                   (batches[batch_id].item_type == ItemType.Shirt)){
+            num_apparel[2] += batches[batch_id].num_clothes;
+        } else if ((batches[batch_id].fabric_type == BatchType.Polyester) &&
+                   (batches[batch_id].item_type == ItemType.Shirt)){
+            num_apparel[3] += batches[batch_id].num_clothes;
+        } else if ((batches[batch_id].fabric_type == BatchType.Cotton) &&
+                   (batches[batch_id].item_type == ItemType.Pants)){
+            num_apparel[4] += batches[batch_id].num_clothes;
+        } else if ((batches[batch_id].fabric_type == BatchType.Polyester) &&
+                   (batches[batch_id].item_type == ItemType.Pants)){
+            num_apparel[5] += batches[batch_id].num_clothes;
+        }
+    }
+
+    // Function to create the number of items made in a batch
+    function create_item(
+        /**Batch ID**/
+        uint256 batch_id
+    )
+        internal
+        batch_complete(batch_id)
+    {
+        uint256 item_start = num_items;
+        num_items += batches[batch_id].num_clothes;
+
+        // Create new items and set state to 'Created'
+        for (uint256 i = item_start; i < num_items; i++){
+            items[i].state = ItemState.Created;
+            items[i].batch_no = batch_id;
+        }
+
+        emit NewItemsCreated(
+            item_start,
+            num_items - 1,
+            batches[batch_id].fabric_type,
+            batches[batch_id].item_type
+        );
     }
 
 }
