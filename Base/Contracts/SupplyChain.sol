@@ -40,20 +40,21 @@ contract ClothingSupplyChain{
         ItemState state;
         uint256 batch_no;
         uint256 receipt_number;
-        uint256 retail_price;
+        uint256 retail_price;       // price in cents for item
         uint256 date_of_sale;
     }
 
     // EVENTS
-    event NewDeliveryCreated(uint256 indexed delivery_id, address employee_address, string supplier, MaterialType material);
-    event DeliveryCreationFailed(string supplier, uint8 material, uint256 weight, uint256 cost, string message);
-    event NewBatchCreated(uint256 indexed batch_id, address employee_address, BatchType fabric, ItemType apparel);
-    event BatchCreationFailed(uint8 fabric, uint256 machine_id, string message);
-    event BatchCompletionFailed(uint256 indexed batch_id, string message);
-    event BatchCompleted(uint256 indexed batch_id, uint256 num_items);
-    event DeliveryReceived(uint256 indexed delivery_id);
-    event DeliveryCanceled(uint256 indexed delivery_id);
-    event NewItemsCreated(uint256 indexed item_start_id, uint256 indexed item_end_id, BatchType fabric, ItemType item_type);
+    event NewDeliveryCreated (uint256 indexed delivery_id, address employee_address, string supplier, MaterialType material);
+    event DeliveryCreationFailed (string supplier, uint8 material, uint256 weight, uint256 cost, string message);
+    event NewBatchCreated (uint256 indexed batch_id, address employee_address, BatchType fabric, ItemType apparel);
+    event BatchCreationFailed (uint8 fabric, uint256 machine_id, string message);
+    event BatchCompletionFailed (uint256 indexed batch_id, string message);
+    event BatchCompleted (uint256 indexed batch_id, uint256 num_items);
+    event DeliveryReceived (uint256 indexed delivery_id);
+    event DeliveryCanceled( uint256 indexed delivery_id);
+    event NewItemsCreated (uint256 indexed item_start_id, uint256 indexed item_end_id, BatchType fabric, ItemType item_type);
+    event ItemSold (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date);
 
     // MODIFIERS
     modifier delivery_order_created (uint256 delivery_id){
@@ -71,10 +72,20 @@ contract ClothingSupplyChain{
         _;
     }
 
+    modifier item_created (uint256 item_id){
+        require (items[item_id].state == ItemState.Created);
+        _;
+    }
+
+    modifier item_shipped (uint256 item_id){
+        require (batches[items[item_id].batch_no].state == BatchState.Shipped);
+        _;
+    }
+
     // VARIABLES
     address admin;
     uint256 [2] private material_weights;   // amount of material available; 0 -> Cotton, 1 -> Ethylene
-    uint256 [6] private num_apparel;        // 0 -> cotton tshirt, 1 -> polyester tshirt, 2 -> cotton shirt, 3 -> polyester shirt, 4 -> cotton pants, 5 -> polyester pants
+    uint256 [6] private num_apparel;        // Stock of Apparel: 0 -> cotton tshirt, 1 -> polyester tshirt, 2 -> cotton shirt, 3 -> polyester shirt, 4 -> cotton pants, 5 -> polyester pants
     uint256 private num_deliveries;
     uint256 private num_batches;
     uint256 private num_items;
@@ -244,9 +255,6 @@ contract ClothingSupplyChain{
         batches[batch_id].price_per = price;
         batches[batch_id].cost_per = cost;
 
-        // Add the appropriate number of apparel to the num_apparel array
-        add_apparel(batch_id);
-
         // Create Items with the tagged details
         create_item(batch_id);
 
@@ -254,7 +262,7 @@ contract ClothingSupplyChain{
         return true;
     }
 
-    // Function to help add num of apparels to num_apparel array created by a batch
+    // Function to help add num of apparels in a batch to stock at store
     function add_apparel(
         /**Arguments**/
         uint256 batch_id
@@ -306,6 +314,74 @@ contract ClothingSupplyChain{
             batches[batch_id].fabric_type,
             batches[batch_id].item_type
         );
+    }
+
+    // A function to ship the batch of items
+    function ship_batch(
+        /**Batch ID**/
+        uint256 batch_id
+    )
+        public
+        batch_complete(batch_id)
+        returns (bool)
+    {
+        add_apparel(batch_id);
+        batches[batch_id].state = BatchState.Shipped;
+
+        return true;
+    }
+
+    // --------------------------Sale--------------------------
+    // A function to sell an item from stock
+    function sell_item(
+        /**Sale Details**/
+        uint256 item_id,
+        uint256 receipt_number,
+        uint256 price
+    )
+        public
+        item_created(item_id)
+        item_shipped(item_id)
+        returns (bool)
+    {
+        items[item_id].state = ItemState.Sold;
+        items[item_id].receipt_number = receipt_number;
+        items[item_id].retail_price = price;
+        items[item_id].date_of_sale = block.timestamp;
+
+        // Subtract item from available stock
+        subtract_stock(item_id);
+
+        emit ItemSold (item_id, receipt_number, items[item_id].date_of_sale);
+
+        return true;
+    }
+
+    function subtract_stock(
+        uint256 item_id
+    )
+        internal
+    {
+        uint256 batch_id = items[item_id].batch_no;
+        if ((batches[batch_id].fabric_type == BatchType.Cotton) &&
+            (batches[batch_id].item_type == ItemType.TShirt)){
+            num_apparel[0] -= 1;
+        } else if ((batches[batch_id].fabric_type == BatchType.Polyester) &&
+                   (batches[batch_id].item_type == ItemType.TShirt)){
+            num_apparel[1] -= 1;
+        } else if ((batches[batch_id].fabric_type == BatchType.Cotton) &&
+                   (batches[batch_id].item_type == ItemType.Shirt)){
+            num_apparel[2] -= 1;
+        } else if ((batches[batch_id].fabric_type == BatchType.Polyester) &&
+                   (batches[batch_id].item_type == ItemType.Shirt)){
+            num_apparel[3] -= 1;
+        } else if ((batches[batch_id].fabric_type == BatchType.Cotton) &&
+                   (batches[batch_id].item_type == ItemType.Pants)){
+            num_apparel[4] -= 1;
+        } else if ((batches[batch_id].fabric_type == BatchType.Polyester) &&
+                   (batches[batch_id].item_type == ItemType.Pants)){
+            num_apparel[5] -= 1;
+        }
     }
 
 }
