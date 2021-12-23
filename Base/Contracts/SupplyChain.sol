@@ -52,9 +52,10 @@ contract ClothingSupplyChain{
     event BatchCompletionFailed (uint256 indexed batch_id, string message);
     event BatchCompleted (uint256 indexed batch_id, uint256 num_items);
     event DeliveryReceived (uint256 indexed delivery_id);
-    event DeliveryCanceled( uint256 indexed delivery_id);
+    event DeliveryCancelled( uint256 indexed delivery_id);
     event NewItemsCreated (uint256 indexed item_start_id, uint256 indexed item_end_id, BatchType fabric, ItemType item_type);
     event ItemSold (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date);
+    event ItemReturned (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date, uint256 price);
 
     // MODIFIERS
     modifier delivery_order_created (uint256 delivery_id){
@@ -82,6 +83,11 @@ contract ClothingSupplyChain{
         _;
     }
 
+    modifier item_sold (uint256 item_id){
+        require (items[item_id].state == ItemState.Sold);
+        _;
+    }
+
     // VARIABLES
     address admin;
     uint256 [2] private material_weights;   // amount of material available; 0 -> Cotton, 1 -> Ethylene
@@ -102,6 +108,9 @@ contract ClothingSupplyChain{
 
     // --------------------------Supplier--------------------------
     // A function to create a delivery order for new materials
+    // Material Type: 0 -> cotton, 1 -> Ethylene
+    // weight = weight in grams
+    // cost = cost in cents
     function create_delivery_order(
         /**Material Details**/
         uint8 material_type,
@@ -169,13 +178,15 @@ contract ClothingSupplyChain{
         returns (bool)
     {
         deliveries[delivery_id].state = MaterialState.Failed;
-        emit DeliveryCanceled(delivery_id);
+        emit DeliveryCancelled(delivery_id);
         return true;
     }
 
     
     // --------------------------Manufacture--------------------------
     // A function to start processing a new batch of clothes being proccessed
+    // Fabric: 0 -> Cotton, 1 -> Polyester
+    // Apparel: 0 -> tshirt, 1 -> shirt, 2 -> pants
     function start_batch(
         /**Batch Details**/
         uint8 fabric,
@@ -239,10 +250,10 @@ contract ClothingSupplyChain{
         require (cost > 0, "Cost cannot be zero");
 
         if (batches[batch_id].fabric_type == BatchType.Cotton){
-            require (material_weights[0] > batch_output * 250);
+            require (material_weights[0] >= batch_output * 250);
             material_weights[0] -= batch_output * 250;
         } else if (batches[batch_id].fabric_type == BatchType.Polyester){
-            require (material_weights[1] > batch_output * 250);
+            require (material_weights[1] >= batch_output * 250);
             material_weights[1] -= batch_output * 250;
         } else {
             emit BatchCompletionFailed(batch_id, "Batch not Initiated");
@@ -357,6 +368,8 @@ contract ClothingSupplyChain{
         return true;
     }
 
+    // A helper function to subtract an item from the available stock
+    // of ready to sell items.
     function subtract_stock(
         uint256 item_id
     )
@@ -383,5 +396,27 @@ contract ClothingSupplyChain{
             num_apparel[5] -= 1;
         }
     }
+
+    // A function to return the item that has already been sold
+    function return_item(
+        uint256 item_id
+    )
+        public
+        item_sold(item_id)
+        returns (bool)
+    {
+        items[item_id].state = ItemState.Returned;
+        items[item_id].date_of_sale = block.timestamp;
+
+        emit ItemReturned(
+            item_id,
+            items[item_id].receipt_number,
+            items[item_id].date_of_sale,
+            items[item_id].retail_price
+        );
+
+        return true;
+    }
+
 
 }
