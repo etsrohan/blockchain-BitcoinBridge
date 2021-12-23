@@ -156,7 +156,7 @@ def item_sold(item_id, receipt_number, date):
     A target function to handle the event of an item being sold
     """
     print(
-        f"""\nNew Item Sold:\n
+        f"""\nNew Item Sold:
             \r\tItem ID: {item_id}
             \r\tReceipt Number: {receipt_number}
             \r\tDate: {time.ctime(date)}"""
