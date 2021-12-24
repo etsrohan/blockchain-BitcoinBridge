@@ -3,7 +3,7 @@
 ### Supply Chain - Ganache
 
 #### Step 1:
-![Step1] (Images/Step 1.png)
+![Step1] (https://imgur.com/BDR7uxw.png)
 
 Open Ganache using the downloaded AppImage downloaded from the ganache website. Click on quickstart when prompted.
 
