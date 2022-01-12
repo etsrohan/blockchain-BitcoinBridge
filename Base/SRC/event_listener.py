@@ -54,13 +54,55 @@ transactionbridge = w32.eth.contract(
 print("\n[SUCCESS] Connected to Transaction Bridge Smart Contract...")
 # -----------------------------MAIN PROGRAM-----------------------------
 print("\nListnening for new events...\n")
+# A dictionary to store the transaction_id for every receipt number
+trans_dict = {}
+
 # EVENT HANDLING FUNCTIONS
+def transaction_created(transaction_id, receipt_number):
+    """
+    A target function to handle the event of a transaction being 
+    created on transaction bridge.
+    """
+    print(
+        f"""\nShopping Cart Created:
+            \r\tTransaction ID: {transaction_id}
+            \r\tReceipt Number: {receipt_number}"""
+    )
 
-# event TransactionCreated (uint256 indexed transaction_id, uint256 receipt_number);
-# event TransactionUpdated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
-# event TransactionRefunded (uint256 indexed transaction_id, uint256 receipt_number);
-# event PaymentInitiated (uint256 indexed traansaction_id, uint256 receipt_number, uint256 total);
+def transaction_updated(transaction_id, receipt_number, total):
+    """
+    A target function to handle the event of a transaction being 
+    updated on transaction bridge.
+    """
+    print(
+        f"""\nShopping Cart Updated:
+            \r\tTransaction ID: {transaction_id}
+            \r\tReceipt Number: {receipt_number}
+            \r\tNew Total Amount Due: ${total / 100}"""
+    )
 
+def transaction_refunded(transaction_id, receipt_number):
+    """
+    A target function to handle the event of a transaction being 
+    refunded on transaction bridge.
+    """
+    print(
+        f"""\Transaction Refunded:
+            \r\tTransaction ID: {transaction_id}
+            \r\tReceipt Number: {receipt_number}"""
+    )
+
+def payment_initiated(transaction_id, receipt_number, total):
+    """
+    A target function to handle the event of a payment being 
+    initiated on transaction bridge.
+    """
+    print(
+        f"""\nPayment Process Initiated:
+            \r\tTransaction ID: {transaction_id}
+            \r\tReceipt Number: {receipt_number}
+            \r\tTotal Amount Due: ${total / 100}"""
+    )
 
 def new_delivery_created(delivery_id, employee_address, supplier, material):
     """
@@ -179,6 +221,8 @@ def item_sold(item_id, receipt_number, date):
             \r\tReceipt Number: {receipt_number}
             \r\tDate: {time.ctime(date)}"""
     )
+    # Create a new transaction if receipt number is unique else
+    # add item to existing cart (transaction)
 
 def item_returned(item_id, receipt_number, date, price):
     """
@@ -193,6 +237,84 @@ def item_returned(item_id, receipt_number, date, price):
     )
 
 # ASYNC FUNCTION LOOPS
+# TransactionCreated (uint256 indexed transaction_id, uint256 receipt_number);
+async def tc_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every payment being
+    processed.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = transaction_created,
+                args = (
+                    event['args']['transaction_id'],
+                    event['args']['receipt_number']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
+# TransactionUpdated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
+async def tu_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every transaction being
+    updated.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = transaction_updated,
+                args = (
+                    event['args']['transaction_id'],
+                    event['args']['receipt_number'],
+                    event['args']['total']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
+# TransactionRefunded (uint256 indexed transaction_id, uint256 receipt_number);
+async def tr_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every transaction being
+    refunded.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = transaction_refunded,
+                args = (
+                    event['args']['transaction_id'],
+                    event['args']['receipt_number']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
+# PaymentInitiated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
+async def payment_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every payment being
+    processed.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = payment_initiated,
+                args = (
+                    event['args']['transaction_id'],
+                    event['args']['receipt_number'],
+                    event['args']['total']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
 # NewDeliveryCreated (uint256 indexed delivery_id, address employee_address, string supplier, MaterialType material);
 async def ndc_loop(event_filter, poll_interval):
     """
@@ -427,6 +549,10 @@ def main():
     nic_filter = supplychain.events.NewItemsCreated().createFilter(fromBlock = 'latest')
     is_filter = supplychain.events.ItemSold().createFilter(fromBlock = 'latest')
     ir_filter = supplychain.events.ItemReturned().createFilter(fromBlock = 'latest')
+    tc_filter = transactionbridge.events.TransactionCreated().createFilter(fromBlock = 'latest')
+    tu_filter = transactionbridge.events.TransactionUpdated().createFilter(fromBlock = 'latest')
+    tr_filter = transactionbridge.events.TransactionRefunded().createFilter(fromBlock = 'latest')
+    payment_filter = transactionbridge.events.PaymentInitiated().createFilter(fromBlock = 'latest')
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(
@@ -441,8 +567,11 @@ def main():
                 dc_loop(dc_filter, 2),
                 nic_loop(nic_filter, 2),
                 is_loop(is_filter, 2),
-                ir_loop(ir_filter, 2)
-                
+                ir_loop(ir_filter, 2),
+                tc_loop(tc_filter, 2),
+                tu_loop(tu_filter, 2),
+                tr_loop(tr_filter, 2),
+                payment_loop(payment_filter, 2)
             )
         )
     except KeyboardInterrupt as err:

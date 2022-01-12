@@ -18,7 +18,7 @@ contract TransactionBridge {
     event TransactionCreated (uint256 indexed transaction_id, uint256 receipt_number);
     event TransactionUpdated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
     event TransactionRefunded (uint256 indexed transaction_id, uint256 receipt_number);
-    event PaymentInitiated (uint256 indexed traansaction_id, uint256 receipt_number, uint256 total);
+    event PaymentInitiated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
 
     // MODIFIERS
     modifier transaction_created(uint256 transaction_id){
