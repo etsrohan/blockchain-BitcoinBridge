@@ -10,40 +10,58 @@ GANACHE_URL = "HTTP://127.0.0.1:7545"
 w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
 
 if w3.isConnected():
-    print("\n[SUCCESS] Connected to the Ganache Blockchain Environment!")
+    print("\n[SUCCESS] Connected to the Supply Chain Ganache Blockchain Environment!")
     
-# Getting smart conract information
+GANACHE_URL2 = "HTTP://127.0.0.1:7546"
+w32 = Web3(Web3.HTTPProvider(GANACHE_URL2))
+
+if w32.isConnected():
+    print("\n[SUCCESS] Connected to the Transaction Bridge Ganache Blockchain Environment!")
+    
+# Getting SC smart contract information
 with open('Contracts/SupplyChain.info', 'r') as file_object:
     contract_info = file_object.readlines()
 
 supply_address = contract_info[0][:-1]
-abi = json.loads(contract_info[1])
+supply_abi = json.loads(contract_info[1])
+
+# Getting TB smart contract information
+with open('Contracts/TransactionBridge.info', 'r') as file_object:
+    contract_info = file_object.readlines()
+
+bridge_address = contract_info[0][:-1]
+bridge_abi = json.loads(contract_info[1])
 
 # Set first address as deployer for contract
 w3.eth.default_account = w3.eth.accounts[0]
+w32.eth.default_account = w32.eth.accounts[0]
 
-# Start deploying smart contract
+# Start connecting to smart contracts
 print("\n[CONNECTING] Connecting to Supply Chain Contract...")
 
 supplychain = w3.eth.contract(
     address = supply_address,
-    abi = abi
+    abi = supply_abi
 )
 print("\n[SUCCESS] Connected to Supply Chain Smart Contract...")
-# -----------------------------MAIN PROGRAM-----------------------------
-# event NewDeliveryCreated (uint256 indexed delivery_id, address employee_address, string supplier, MaterialType material);
-# event DeliveryCreationFailed (string supplier, uint8 material, uint256 weight, uint256 cost, string message);
-# event NewBatchCreated (uint256 indexed batch_id, address employee_address, BatchType fabric, ItemType apparel);
-# event BatchCreationFailed (uint8 fabric, uint256 machine_id, string message);
-# event BatchCompletionFailed (uint256 indexed batch_id, string message);
-# event BatchCompleted (uint256 indexed batch_id, uint256 num_items);
-# event DeliveryReceived (uint256 indexed delivery_id);
-# event DeliveryCancelled( uint256 indexed delivery_id);
-# event NewItemsCreated (uint256 indexed item_start_id, uint256 indexed item_end_id, BatchType fabric, ItemType item_type);
-# event ItemSold (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date);
-# event ItemReturned (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date, uint256 price);
 
+print("\n[CONNECTING] Connecting to Transaction Bridge Contract...")
+
+transactionbridge = w32.eth.contract(
+    address = bridge_address,
+    abi = bridge_abi
+)
+print("\n[SUCCESS] Connected to Transaction Bridge Smart Contract...")
+# -----------------------------MAIN PROGRAM-----------------------------
+print("\nListnening for new events...\n")
 # EVENT HANDLING FUNCTIONS
+
+# event TransactionCreated (uint256 indexed transaction_id, uint256 receipt_number);
+# event TransactionUpdated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
+# event TransactionRefunded (uint256 indexed transaction_id, uint256 receipt_number);
+# event PaymentInitiated (uint256 indexed traansaction_id, uint256 receipt_number, uint256 total);
+
+
 def new_delivery_created(delivery_id, employee_address, supplier, material):
     """
     A target function to handle the event of a delivery order

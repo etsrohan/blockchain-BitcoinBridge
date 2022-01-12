@@ -17,6 +17,8 @@ contract TransactionBridge {
     // EVENTS
     event TransactionCreated (uint256 indexed transaction_id, uint256 receipt_number);
     event TransactionUpdated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
+    event TransactionRefunded (uint256 indexed transaction_id, uint256 receipt_number);
+    event PaymentInitiated (uint256 indexed traansaction_id, uint256 receipt_number, uint256 total);
 
     // MODIFIERS
     modifier transaction_created(uint256 transaction_id){
@@ -40,10 +42,14 @@ contract TransactionBridge {
 
     // VARIABLES
     uint256 num_transactions;
+    address admin;
     mapping (uint256 => Transaction) transactions;
 
     // FUNCTIONS
-
+    constructor () {
+        admin = msg.sender;
+    }
+    
     // Create a new transaction so people can push more
     // items onto the receipt
     function create_transaction (
@@ -110,16 +116,23 @@ contract TransactionBridge {
         transaction_payable(trans_id)
         returns (bool)
     {
-        // Add stuff to interact with a bitcoin chain
-
         // Set transaction state to completed
-        // Should have an if/else statement to set transaction 
+        // Note: Should have an if/else statement to set transaction 
         // state to completed or failed.
         transactions[trans_id].state = TransactionState.Completed;
+        // Add payment completion date to transaction
+        transactions[trans_id].dates[1] = block.timestamp;
+        // Emit event to begin funds transfer via bitcoin transaction
+        emit PaymentInitiated(
+            trans_id,
+            transactions[trans_id].receipt_num,
+            transactions[trans_id].total
+        );
         return true;
     }
 
-    // 
+    // Excuting a transaction to reverse the payment that was done due to
+    // returning an item by a customer.
     function refund_transaction(
         /**ARGUMENTS**/
         uint256 trans_id
@@ -128,10 +141,15 @@ contract TransactionBridge {
         transaction_completed(trans_id)
         returns (bool)
     {
-        // Add stuff to interact with bitcoin chain
-
         // Set transaction state to refunded
         transactions[trans_id].state = TransactionState.Refunded;
+        // Set refund date into transaction
+        transactions[trans_id].dates[2] = block.timestamp;
+        // Emit an event to refund the transaction
+        emit TransactionRefunded(
+            trans_id,
+            transactions[trans_id].receipt_num
+        );
         return true;
     }
 }
