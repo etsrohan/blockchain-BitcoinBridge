@@ -45,9 +45,13 @@ In order to proceed to sales we need to ship the batch of clothes. So type in `p
 #### Step 9:
 ![Step9] (Images/Step 9.png)
 
-To sell a particular item created by the processing batch execute `python3 SRC/sell_item_sc.py` select one of the item numbers created in the previous step and add all the necessary details.
+To sell a particular item created by the processing batch execute `python3 SRC/sell_item_sc.py` select one of the item numbers created in the previous step and add all the necessary details. Use the same receipt number to add item to the same transaction.
 
 ### Step 10:
 ![Step10] (Images/Step 10.png)
 
 To return a sold item we need to execute `python3 SRC/return_item_sc.py` and enter the item number to be returned. Note: you cannot return an item that does not exist or that has not been sold.
+
+### Step 11:
+
+To proceed with the payment of the transaction execute `python3 SRC/pay_transaction.py`. This will conclude the receipt and send the appropriate amount of bitcoin from one address to another.
