@@ -418,5 +418,13 @@ contract ClothingSupplyChain{
         return true;
     }
 
-
+    function get_price(
+        uint256 item_id
+    )
+        public
+        view
+        returns (uint256)
+    {
+        return items[item_id].retail_price;
+    }
 }

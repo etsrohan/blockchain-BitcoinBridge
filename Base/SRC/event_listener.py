@@ -3,6 +3,8 @@ import threading
 import json
 import asyncio
 import time
+from bit import PrivateKeyTestnet
+import os
 
 # ---------------------CONNECT TO SUPPLY CHAIN CONTRACT ON GANACHE---------------------
 # web3.py instance - Connectiong to Ganache App
@@ -52,57 +54,68 @@ transactionbridge = w32.eth.contract(
     abi = bridge_abi
 )
 print("\n[SUCCESS] Connected to Transaction Bridge Smart Contract...")
+
+# -----------------------------BTC TESTNET-----------------------------
+with open(os.path.join(os.getcwd(), "Wallet/wallet.info"), 'r') as file_obj:
+    accs = file_obj.readlines()
+accs[0] = accs[0][:-1]
+
+keys = []
+for acc in accs:
+    keys.append(PrivateKeyTestnet(acc))
+
 # -----------------------------MAIN PROGRAM-----------------------------
 print("\nListnening for new events...\n")
-# A dictionary to store the transaction_id for every receipt number
-trans_dict = {}
 
 # EVENT HANDLING FUNCTIONS
-def transaction_created(transaction_id, receipt_number):
+def transaction_created(receipt_number):
     """
     A target function to handle the event of a transaction being 
     created on transaction bridge.
     """
     print(
         f"""\nShopping Cart Created:
-            \r\tTransaction ID: {transaction_id}
             \r\tReceipt Number: {receipt_number}"""
     )
 
-def transaction_updated(transaction_id, receipt_number, total):
+def transaction_updated(receipt_number, total):
     """
     A target function to handle the event of a transaction being 
     updated on transaction bridge.
     """
     print(
         f"""\nShopping Cart Updated:
-            \r\tTransaction ID: {transaction_id}
             \r\tReceipt Number: {receipt_number}
             \r\tNew Total Amount Due: ${total / 100}"""
     )
 
-def transaction_refunded(transaction_id, receipt_number):
+def transaction_refunded(receipt_number):
     """
     A target function to handle the event of a transaction being 
     refunded on transaction bridge.
     """
     print(
         f"""\Transaction Refunded:
-            \r\tTransaction ID: {transaction_id}
             \r\tReceipt Number: {receipt_number}"""
     )
 
-def payment_initiated(transaction_id, receipt_number, total):
+def payment_initiated(receipt_number, total):
     """
     A target function to handle the event of a payment being 
     initiated on transaction bridge.
     """
     print(
         f"""\nPayment Process Initiated:
-            \r\tTransaction ID: {transaction_id}
             \r\tReceipt Number: {receipt_number}
             \r\tTotal Amount Due: ${total / 100}"""
     )
+    # Send BTC Transaction
+    print("Sending Bitcoin Transaction as payment...")
+    try:
+        tx_hash = keys[0].send([(keys[1].address, total/100, 'usd')])
+        print(tx_hash)
+    except Exception as err:
+        print("[ERROR] oops BTC transaction error!")
 
 def new_delivery_created(delivery_id, employee_address, supplier, material):
     """
@@ -223,6 +236,20 @@ def item_sold(item_id, receipt_number, date):
     )
     # Create a new transaction if receipt number is unique else
     # add item to existing cart (transaction)
+    trans_state = transactionbridge.functions.get_state(receipt_number).call()
+    if trans_state != 0 and trans_state != 1:
+        print("[ERROR] Invalid Receipt Number...")
+        return
+    if trans_state == 0:
+        # Create a new transaction
+        print("Creating new transaction...")
+        tx_hash = transactionbridge.functions.create_transaction(receipt_number).transact()
+        tx_receipt = w32.eth.wait_for_transaction_receipt(tx_hash)
+    # Add item to transaction
+    print("Adding item to transaction...")
+    price = supplychain.functions.get_price(item_id).call()
+    tx_hash = transactionbridge.functions.add_items_to_transaction(receipt_number, [item_id], [price]).transact()
+    tx_receipt = w32.eth.wait_for_transaction_receipt(tx_hash)
 
 def item_returned(item_id, receipt_number, date, price):
     """
@@ -237,7 +264,7 @@ def item_returned(item_id, receipt_number, date, price):
     )
 
 # ASYNC FUNCTION LOOPS
-# TransactionCreated (uint256 indexed transaction_id, uint256 receipt_number);
+# TransactionCreated (uint256 indexed receipt_number);
 async def tc_loop(event_filter, poll_interval):
     """
     Asynchronous function to create new threads for every payment being
@@ -249,14 +276,13 @@ async def tc_loop(event_filter, poll_interval):
             thread = threading.Thread(
                 target = transaction_created,
                 args = (
-                    event['args']['transaction_id'],
-                    event['args']['receipt_number']
+                    event['args']['receipt_number'],
                 )
             )
             thread.start()
         await asyncio.sleep(poll_interval)
 
-# TransactionUpdated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
+# TransactionUpdated (uint256 indexed receipt_number, uint256 total);
 async def tu_loop(event_filter, poll_interval):
     """
     Asynchronous function to create new threads for every transaction being
@@ -268,7 +294,6 @@ async def tu_loop(event_filter, poll_interval):
             thread = threading.Thread(
                 target = transaction_updated,
                 args = (
-                    event['args']['transaction_id'],
                     event['args']['receipt_number'],
                     event['args']['total']
                 )
@@ -276,7 +301,7 @@ async def tu_loop(event_filter, poll_interval):
             thread.start()
         await asyncio.sleep(poll_interval)
 
-# TransactionRefunded (uint256 indexed transaction_id, uint256 receipt_number);
+# TransactionRefunded (uint256 indexed receipt_number);
 async def tr_loop(event_filter, poll_interval):
     """
     Asynchronous function to create new threads for every transaction being
@@ -288,14 +313,13 @@ async def tr_loop(event_filter, poll_interval):
             thread = threading.Thread(
                 target = transaction_refunded,
                 args = (
-                    event['args']['transaction_id'],
-                    event['args']['receipt_number']
+                    event['args']['receipt_number'],
                 )
             )
             thread.start()
         await asyncio.sleep(poll_interval)
 
-# PaymentInitiated (uint256 indexed transaction_id, uint256 receipt_number, uint256 total);
+# PaymentInitiated (uint256 indexed receipt_number, uint256 total);
 async def payment_loop(event_filter, poll_interval):
     """
     Asynchronous function to create new threads for every payment being
@@ -307,7 +331,6 @@ async def payment_loop(event_filter, poll_interval):
             thread = threading.Thread(
                 target = payment_initiated,
                 args = (
-                    event['args']['transaction_id'],
                     event['args']['receipt_number'],
                     event['args']['total']
                 )
