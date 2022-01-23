@@ -9,9 +9,10 @@ contract TransactionBridge {
     struct Transaction {
         TransactionState state;
         uint256[] items;
-        // uint256 receipt_num;
         uint256 total;             // Amount Due/Paid/Refunded in cents
         uint256[3] dates;          // Creation, Completion, Refund Dates in epoch time.
+        bool seller_ok;
+        bool buyer_ok;
     }
 
     // EVENTS
@@ -19,6 +20,8 @@ contract TransactionBridge {
     event TransactionUpdated (uint256 indexed receipt_number, uint256 total);
     event TransactionRefunded (uint256 indexed receipt_number);
     event PaymentInitiated (uint256 indexed receipt_number, uint256 total);
+    event SellerOk (uint256 indexed receipt_number, uint256 total);
+    event BuyerOk (uint256 indexed receipt_number, uint256 total);
 
     // MODIFIERS
     modifier transaction_created(uint256 receipt_number){
@@ -37,6 +40,16 @@ contract TransactionBridge {
             transactions[receipt_number].state == TransactionState.Failed,
             "Transaction already paid or not created!"
         );
+        _;
+    }
+
+    modifier buyer_ready(uint256 receipt_number){
+        require(transactions[receipt_number].buyer_ok == true);
+        _;
+    }
+
+    modifier seller_ready(uint256 receipt_number){
+        require(transactions[receipt_number].seller_ok == true);
         _;
     }
 
@@ -103,6 +116,41 @@ contract TransactionBridge {
         return true;
     }
 
+    function confirm_seller(
+        /**ARGUMENTS**/
+        uint256 receipt_num
+    )
+        public
+        transaction_created(receipt_num)
+        returns (bool)
+    {
+        // Seller says the transaction is ready to be reviewed by the buyer
+        transactions[receipt_num].seller_ok = true;
+
+        // emit event with seller agreement
+        emit SellerOk(receipt_num, transactions[receipt_num].total);
+
+        return true;
+    }
+
+    function confirm_buyer(
+        /**ARGUMENTS**/
+        uint256 receipt_num
+    )
+        public
+        transaction_created(receipt_num)
+        seller_ready(receipt_num)
+        returns (bool)
+    {
+        // Buyer says the transaction is ready to be processed
+        transactions[receipt_num].buyer_ok = true;
+
+        // emit event with buyer agreement
+        emit BuyerOk(receipt_num, transactions[receipt_num].total);
+
+        return true;
+    }
+
     // A function to let the buyer pay the amount owed in receipt
     // to the seller
     function pay_transaction(
@@ -111,6 +159,8 @@ contract TransactionBridge {
     )
         public
         transaction_payable(receipt_num)
+        seller_ready(receipt_num)
+        buyer_ready(receipt_num)
         returns (bool)
     {
         // Set transaction state to completed
