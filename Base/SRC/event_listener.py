@@ -262,8 +262,62 @@ def item_returned(item_id, receipt_number, date, price):
             \r\tDate: {time.ctime(date)}
             \r\tPrice Refunded: ${price / 100}"""
     )
+    
+def seller_ok(receipt_number, total):
+    """
+    A target function to handle the event of a seller confirming transaction
+    """
+    print(f"""Seller has confirmed the transaction.
+          \rReceipt Number: {receipt_number}
+          \rTotal: {total}""")
+
+def buyer_ok(receipt_number, total):
+    """
+    A target function to handle the event of a buyer confirming transaction
+    """
+    print(f"""Buyer has confirmed the transaction.
+          \rReceipt Number: {receipt_number}
+          \rTotal: {total}""")
 
 # ASYNC FUNCTION LOOPS
+# event SellerOk (uint256 indexed receipt_number, uint256 total);
+async def sellerok_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every seller confirming the 
+    transaction.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = seller_ok,
+                args = (
+                    event['args']['receipt_number'],
+                    event['args']['total']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
+# event BuyerOk (uint256 indexed receipt_number, uint256 total);
+async def buyerok_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every buyer confirming the 
+    transaction.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = buyer_ok,
+                args = (
+                    event['args']['receipt_number'],
+                    event['args']['total']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
 # TransactionCreated (uint256 indexed receipt_number);
 async def tc_loop(event_filter, poll_interval):
     """
@@ -576,6 +630,8 @@ def main():
     tu_filter = transactionbridge.events.TransactionUpdated().createFilter(fromBlock = 'latest')
     tr_filter = transactionbridge.events.TransactionRefunded().createFilter(fromBlock = 'latest')
     payment_filter = transactionbridge.events.PaymentInitiated().createFilter(fromBlock = 'latest')
+    sellerok_filter = transactionbridge.events.SellerOk().createFilter(fromBlock = 'latest')
+    buyerok_filter = transactionbridge.events.BuyerOk().createFilter(fromBlock = 'latest')
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(
@@ -594,7 +650,9 @@ def main():
                 tc_loop(tc_filter, 2),
                 tu_loop(tu_filter, 2),
                 tr_loop(tr_filter, 2),
-                payment_loop(payment_filter, 2)
+                payment_loop(payment_filter, 2),
+                sellerok_loop(sellerok_filter, 2),
+                buyerok_loop(buyerok_filter, 2)
             )
         )
     except KeyboardInterrupt as err:
