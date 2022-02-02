@@ -14,6 +14,9 @@ class BitcoinBridgeGanache:
     for the Bitcoin Bridge Blockchain Project.
     1) Deploy Smart Contracts: deploy_contracts method deploys both the SupplyChain and BitcoinBridge
     contracts onto ganache"""
+    # Class Variables
+    SUPPLY_CHAIN_URL = "HTTP://127.0.0.1:7545"
+    BRIDGE_URL = "HTTP://127.0.0.1:7546"
     
     def __init__(self):
         # Instance Variables
@@ -21,14 +24,12 @@ class BitcoinBridgeGanache:
         self.supply_chain_address = None
         self.supply_chain_abi = None
         self.supply_chain_bytecode = None
-        self.supply_chain_url = "HTTP://127.0.0.1:7545"
         self.supply_chain_w3 = None
         self.supply_chain_contract = None
         # BRIDGE
         self.bridge_address = None
         self.bridge_abi = None
         self.bridge_bytecode = None
-        self.bridge_url = "HTTP://127.0.0.1:7546"
         self.bridge_w3 = None
         self.bridge_contract = None
         # BITCOIN
@@ -66,8 +67,8 @@ class BitcoinBridgeGanache:
         self.bridge_abi = contract_interface['abi']
         # DEPLOY SMART CONTRACT------------------------------------------------------
         # web3.py instance - Connectiong to Ganache App
-        self.supply_chain_w3 = Web3(Web3.HTTPProvider(self.supply_chain_url))
-        self.bridge_w3 = Web3(Web3.HTTPProvider(self.bridge_url))
+        self.supply_chain_w3 = Web3(Web3.HTTPProvider(self.SUPPLY_CHAIN_URL))
+        self.bridge_w3 = Web3(Web3.HTTPProvider(self.BRIDGE_URL))
 
         if self.supply_chain_w3.isConnected():
             print("[SUCCESS] Connected to the Supply Chain Ganache Blockchain Environment!")
@@ -140,9 +141,9 @@ class BitcoinBridgeGanache:
         "A method to connect to already deployed System"
         # Connect to the web3 instances
         if self.supply_chain_w3 == None:
-            self.supply_chain_w3 = Web3(Web3.HTTPProvider(self.supply_chain_url))
+            self.supply_chain_w3 = Web3(Web3.HTTPProvider(self.SUPPLY_CHAIN_URL))
         if self.bridge_w3 == None:
-            self.bridge_w3 = Web3(Web3.HTTPProvider(self.bridge_url))
+            self.bridge_w3 = Web3(Web3.HTTPProvider(self.BRIDGE_URL))
         
         if self.supply_chain_w3.isConnected() and self.bridge_w3.isConnected():
             print("[SUCCESS] Connected to Supply Chain and Transaction Bridge Networks!")
@@ -198,10 +199,13 @@ class BitcoinBridgeGanache:
               \rFabric: Cotton-> 1, Polyester-> 2
               \rBuy Items: [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]""")
     
+    
+    # SUPPLY CHAIN CONTRACT METHODS--------------------------------------------------
     def buy_items(self, buy_list: List[int]) -> bool:
         """Buy items based on a list of 6 integers indicating how many of each item you want to get.\n
         Argument: List of integers indicating the number of each item you want to buy\n
-        [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]"""
+        [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
         # Error Checking
         if not self.is_connected():
             return False
@@ -290,7 +294,11 @@ class BitcoinBridgeGanache:
         return True
     
     def defective_products(self, defective_list: List[int]) -> bool:
-        """"""
+        """A method to be used by the admin of supply chain contract.\n
+        A method used to remove defective products from the supply chain.\n
+        argument: defective_list is a list of 6 integers that are the number of each corresponding item below.\n
+        [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
         # Error Checking
         if not self.is_connected():
             return False
@@ -311,5 +319,168 @@ class BitcoinBridgeGanache:
             print("[ERROR] Transaction Failed!")
             return False
         return True
+    # ---------------------------------------------------------------------------------
     
+    # BRIDGE CONTRACT METHODS----------------------------------------------------------
+    def create_basket(self, receipt_number: int) -> bool:
+        """Create a new transaction to get total of all items in the basket.\n
+        arguments: receipt_number is the receipt number of basket to be paid with bitcoin.\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.bridge_contract.functions.create_transaction(
+                receipt_number
+            ).transact({'from': self.bridge_w3.eth.accounts[0]})
+            tx_receipt = self.bridge_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed!")
+            return False
+        return True
     
+    def add_items_to_basket(self, receipt_number: int, items: List[int], prices: List[int]) -> bool:
+        """Add particular items to the basket to be ready for payment.\n
+        Arguments:\n
+        \treceipt_num -> integer representing the receipt number of basket\n
+        \titems -> A list of item numbers to be added to basket\n
+        \tprices -> A list of prices in cents used to calculate new total for whole basket.\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return False
+        if len(items) != len(prices):
+            print("[ERROR] Number of items does not match number of prices!")
+            return False
+        for index in range(len(items)):
+            if type(items[index]) != int or type(prices[index]) != int:
+                print("[ERROR] Arguments 'items' and 'prices' must contain only integers!")
+                return False
+        # Send Transaction
+        try:
+            tx_hash = self.bridge_contract.functions.add_items_to_transaction(
+                receipt_number,
+                items,
+                prices
+            ).transact({'from': self.bridge_w3.eth.accounts[0]})
+            tx_receipt = self.bridge_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed!")
+            return False
+        return True
+    
+    def seller_confirmation(self, receipt_number: int, seller_address: str) -> bool:
+        """Method to get confirmation from the seller to proceed with payment\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.bridge_contract.functions.confirm_seller(
+                receipt_number
+            ).transact({'from': seller_address})
+            tx_receipt = self.bridge_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed! Please check Receipt Number to see if it is valid!")
+            return False
+        return True
+    
+    def buyer_confirmation(self, receipt_number: int, buyer_address: str) -> bool:
+        """Method to get confirmation from the buyer to proceed with payment\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.bridge_contract.functions.confirm_buyer(
+                receipt_number
+            ).transact({'from': buyer_address})
+            tx_receipt = self.bridge_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed! Please check Receipt Number to see if it is valid!")
+            return False
+        return True
+    
+    def pay_basket(self, receipt_number: int) -> bool:
+        """A method to initiate the payment process for a receipt number.\n
+        This method only succeeds after both the seller and the buyer have sent their
+        confirmations for payment.\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.bridge_contract.functions.pay_transaction(
+                receipt_number
+            ).transact({'from': self.bridge_w3.eth.accounts[0]})
+            tx_receipt = self.bridge_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed! Please enter a valid receipt number or check to see if transaction is already paid.")
+            return False
+        return True
+    
+    def refund_basket(self, receipt_number: int) -> bool:
+        """A method to initiate the refund process for a receipt number.\n
+        This method only succeeds after a payment has been successfully been processed.\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.bridge_contract.functions.refund_transaction(
+                receipt_number
+            ).transact({'from': self.bridge_w3.eth.accounts[0]})
+            tx_receipt = self.bridge_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed! Please enter a valid receipt number or check to see if transaction failed or is already refunded.")
+            return False
+        return True
+    
+    def get_basket_state(self, receipt_number: int) -> int:
+        """Gets state of the basket with associated receipt number\n
+        return value: 0 -> Not Created, 1 -> Created, 2 -> Completed, 3 -> Failed, 4 -> Refunded"""
+        # Error Checking
+        if not self.is_connected():
+            return None
+        if type(receipt_number) != int:
+            print("[ERROR] Receipt Number must be an integer!")
+            return None
+        return self.bridge_contract.functions.get_state(receipt_number).call()
+    
+    def get_num_baskets(self) -> int:
+        """Gets the number of baskets made by the TransactionBridge Contract."""
+        # Error Checking
+        if not self.is_connected():
+            return None
+        return self.bridge_contract.functions.get_num_trans().call()
+    
+    # ---------------------------------------------------------------------------------
+    
+    # BITCOIN METHODS------------------------------------------------------------------
+    def send_btc(self):
+        pass
+    
+    # ---------------------------------------------------------------------------------
