@@ -7,6 +7,7 @@ import json
 from solcx import compile_source
 from web3 import Web3
 from bit import PrivateKeyTestnet
+from typing import List, Tuple
 
 class BitcoinBridgeGanache:
     """This class contains several methods and variables that help in the following functionality
@@ -136,6 +137,7 @@ class BitcoinBridgeGanache:
         print('[SUCCESS] Transaction Bridge Contract Deployed Successfully!!!')
         
     def connect(self) -> None:
+        "A method to connect to already deployed System"
         # Connect to the web3 instances
         if self.supply_chain_w3 == None:
             self.supply_chain_w3 = Web3(Web3.HTTPProvider(self.supply_chain_url))
@@ -172,3 +174,142 @@ class BitcoinBridgeGanache:
             abi = self.bridge_abi
         )
         print("[SUCCESS] Connected to Supply Chain / Transaction Bridge Smart Contracts!")
+    
+    def is_connected(self) -> bool:
+        """Method used to check if we are connected to the Ganache Apps.
+        Returns True when connected.
+        Returns False if contract not deployed or connected"""
+        if self.supply_chain_w3 == None or self.bridge_w3 == None:
+            print("[ERROR] Please deploy the system or connect to already deployed contract.")
+            return False
+        if not (self.supply_chain_w3.isConnected() and self.bridge_w3.isConnected()):
+            print("[ERROR] Cannot connect to Blockchain Network!")
+            return False
+        if self.supply_chain_contract == None or self.bridge_contract == None:
+            print("[ERROR] Please Connect to Smart Contract.")
+            return False
+        return True
+    
+    @staticmethod
+    def print_instructions():
+        "Prints the legends necessary to interact with smart contracts"
+        print("""The following is the legend which is used to interact with the supply chain contract:
+              \rApparel: Shirt-> 1, T-Shirt-> 2, Pants-> 3
+              \rFabric: Cotton-> 1, Polyester-> 2
+              \rBuy Items: [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]""")
+    
+    def buy_items(self, buy_list: List[int]) -> bool:
+        """Buy items based on a list of 6 integers indicating how many of each item you want to get.\n
+        Argument: List of integers indicating the number of each item you want to buy\n
+        [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if len(buy_list) != 6:
+            print("[ERROR] Argument must be a list of exactly 6 integers!")
+            return False
+        for item in buy_list:
+            if type(item) != int:
+                print("[ERROR] Item in argument was not an integer!")
+                return False
+        
+        # Get user account input
+        try:
+            acc = int(input("Please enter the Account you want to buy from [1-9]: "))
+            acc = self.supply_chain_w3.eth.accounts[acc]
+        except Exception:
+            print("[ERROR] Invalid Account Number!\n")
+            return False
+        
+        # Send Transaction
+        try:
+            tx_hash = self.supply_chain_contract.functions.buy_product(buy_list).transact({'from': acc})
+            tx_receipt = self.supply_chain_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed!")
+            return False
+        return True
+        
+    def get_product_info(self, apparel: int, fabric: int) -> Tuple:
+        """Gets information about each product in the Supply Chain.\n
+        returns: name, manufacturer, department, weight in grams, price in US cents, number left in stock\n
+        returns: None if an error occurs."""
+        if not self.is_connected():
+            return None
+        if type(apparel) != int or type(fabric) != int:
+            print("[ERROR] Arguments are not integers!")
+            return None
+        return self.supply_chain_contract.functions.inquire_product(apparel, fabric).call()
+    
+    def change_item_info(self, apparel: int, fabric: int, price: int, weight: int) -> bool:
+        """This function can only be used by the admin.\n
+        Changes the price and weight of a particular item in Supply Chain.\n
+        Price: US Cents, Weight: grams\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(apparel) != int or type(fabric) != int or type(price) != int or type(weight) != int:
+            print("[ERROR] Arguments are not integers!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.supply_chain_contract.functions.change_clothes(
+                apparel,
+                fabric,
+                price,
+                weight
+            ).transact({'from': self.supply_chain_w3.eth.accounts[0]})
+            tx_receipt = self.supply_chain_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed!")
+            return False
+        return True
+    
+    def add_product(self, apparel: int, fabric: int, num_items: int) -> bool:
+        """To be used by the Admin of the supply chain.\n
+        Adds 'num_items' number of items to the particular apparel\n
+        returns 'True' if transaction was successful otherwise returns 'False'"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if type(apparel) != int or type(fabric) != int or type(num_items) != int:
+            print("[ERROR] Arguments are not integers!")
+            return False
+        # Send Transaction
+        try:
+            tx_hash = self.supply_chain_contract.functions.add_products(
+                apparel,
+                fabric,
+                num_items
+            ).transact({'from': self.supply_chain_w3.eth.accounts[0]})
+            tx_receipt = self.supply_chain_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed!")
+            return False
+        return True
+    
+    def defective_products(self, defective_list: List[int]) -> bool:
+        """"""
+        # Error Checking
+        if not self.is_connected():
+            return False
+        if len(defective_list) != 6:
+            print("[ERROR] Argument must be a list of 6 integers!")
+            return False
+        for item in defective_list:
+            if type(item) != int:
+                print("[ERROR] Items in argument must be integers!")
+                return False
+        # Send Transaction
+        try:
+            tx_hash = self.supply_chain_contract.functions.defective_products(
+                defective_list
+            ).transact({'from': self.supply_chain_w3.eth.accounts[0]})
+            tx_receipt = self.supply_chain_w3.eth.wait_for_transaction_receipt(tx_hash)
+        except Exception:
+            print("[ERROR] Transaction Failed!")
+            return False
+        return True
+    
+    

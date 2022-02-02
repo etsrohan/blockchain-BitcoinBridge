@@ -1,4 +1,16 @@
 from functions.bcb_functions import BitcoinBridgeGanache
 
 a = BitcoinBridgeGanache()
+# a.deploy_contracts()
 a.connect()
+a.print_instructions()
+# a.buy_items([1, 2, 0, 0, 0, 3])
+# a.change_item_info(1, 1, 5500, 4500)
+# a.add_product(1,1,2000)
+a.defective_products([10, 20, 30, 0, 0, 0])
+print(a.get_product_info(1,1))
+print(a.get_product_info(1,2))
+print(a.get_product_info(2,1))
+print(a.get_product_info(2,2))
+print(a.get_product_info(3,1))
+print(a.get_product_info(3,2))

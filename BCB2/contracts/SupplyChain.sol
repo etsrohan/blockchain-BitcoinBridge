@@ -159,7 +159,7 @@ contract ClothingSupplyChain{
         return true;
     }
 
-    // 
+    // A method used by the admin to return defective products
     function defective_products(
         /**ARGUMENTS**/
         uint256[6] memory num_defective
