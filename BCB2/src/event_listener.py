@@ -49,7 +49,8 @@ def bought_items(num_buy):
     
     item_id = [random.randint(1,100) for _ in range(6)]
 
-    prices = [bcb.get_product_info(apparel, fabric)[4] for apparel, fabric in clothes_tuple]
+    prices = [num_buy[index] * bcb.get_product_info(apparel, fabric)[4] for index, (apparel, fabric) in enumerate(clothes_tuple)]
+    
     
     for index, (apparel, fabric) in enumerate(clothes_tuple):
         print(f"Item:{fabric_dict[fabric]} {apparel_dict[apparel]}\tNumber: {num_buy[index]}\tPrice: ${prices[index]/100}")
@@ -114,17 +115,17 @@ def seller_ok(receipt_number, total):
     """
     A target function to handle the event of a seller confirming transaction
     """
-    print(f"""Seller has confirmed the transaction.
+    print(f"""\nSeller has confirmed the transaction.
           \rReceipt Number: {receipt_number}
-          \rTotal: {total}""")
+          \rTotal: ${total/100}""")
 
 def buyer_ok(receipt_number, total):
     """
     A target function to handle the event of a buyer confirming transaction
     """
-    print(f"""Buyer has confirmed the transaction.
+    print(f"""\nBuyer has confirmed the transaction.
           \rReceipt Number: {receipt_number}
-          \rTotal: {total}""")
+          \rTotal: ${total/100}""")
 
 # ASYNC FUNCTION LOOPS
 # event items_defective(uint256[6] num_defective);

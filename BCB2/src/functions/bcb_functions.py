@@ -237,12 +237,13 @@ class BitcoinBridgeGanache:
                 return False
         
         # Get user account input
-        try:
-            acc = int(input("Please enter the Account you want to buy from [1-9]: "))
-            acc = self.supply_chain_w3.eth.accounts[acc]
-        except Exception:
-            print("[ERROR] Invalid Account Number!\n")
-            return False
+        # try:
+        #     acc = int(input("Please enter the Account you want to buy from [1-9]: "))
+        #     acc = self.supply_chain_w3.eth.accounts[acc]
+        # except Exception:
+        #     print("[ERROR] Invalid Account Number!\n")
+        #     return False
+        acc = self.supply_chain_w3.eth.accounts[1]
         
         # Send Transaction
         try:

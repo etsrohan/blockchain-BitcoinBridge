@@ -36,7 +36,7 @@ def main():
     \r\t9. Buyer confirms payment
     \r\t10. Pay for items in Cart
     \r\t11. Get Seller and Buyer Bitcoin Balances
-    ------------------------------------------------\n
+    \r------------------------------------------------\n
     """)
     
     choice = int(input("Please select an option from the above choices [1-11] or press 0 to exit: "))
@@ -57,19 +57,26 @@ def main():
         print()
         product_info()
     elif choice == 5:
-        pass
+        print()
+        buy_items()
     elif choice == 6:
-        pass
+        print()
+        change_item()
     elif choice == 7:
-        pass
+        print()
+        add_more_item()
     elif choice == 8:
-        pass
+        print()
+        seller_confirm()
     elif choice == 9:
-        pass
+        print()
+        buyer_confirm()
     elif choice == 10:
-        pass
+        print()
+        pay_for_item()
     elif choice == 11:
-        pass
+        print()
+        bitcoin_wallet_info()
     else:
         main()
 
@@ -77,6 +84,7 @@ def apparel_choice():
     apparel = int(input("Please enther the Apparel type of the product [1-3]: "))
     fabric = int(input("Please enter the Fabric of the product[1-2]: "))
     return apparel, fabric
+
 def deploy_system():
     bcb.deploy_contracts()
     main()
@@ -99,6 +107,55 @@ def product_info():
           \r\tWeight:\t\t{pinfo[3]} grams
           \r\tPrice:\t\t${pinfo[4]/100}
           \r\tNum Left:\t{pinfo[5]}""")
+    main()
+    
+def buy_items():
+    products = []
+    for apparel, fabric in clothes_tuple:
+        products.append(int(input(f"Please enter the amount of {fabric_dict[fabric]} {apparel_dict[apparel]}s you want to purchase: ")))
+    
+    print("Sending request to supply chain!")
+    bcb.buy_items(products)
+    print("Request sent!")
+    main()
+    
+def change_item():
+    apparel, fabric = apparel_choice()
+    price = int(input("Please enter the new price of the item in cents: "))
+    weight = int(input("Please enter the new weight of the item in grams: "))
+    print(f"Changing {fabric_dict[fabric]} {apparel_dict[apparel]} info")
+    bcb.change_item_info(apparel, fabric, price, weight)
+    main()
+
+def add_more_item():
+    apparel, fabric = apparel_choice()
+    num = int(input("Please enter the number of items you want to add: "))
+    print(f"Adding {num} items to {fabric_dict[fabric]} {apparel_dict[apparel]}")
+    bcb.add_product(apparel, fabric, num)
+    main()
+
+def seller_confirm():
+    receipt_num = int(input("Please enter the receipt number you received for your basket: "))
+    print("Sending Confirmation from Seller")
+    bcb.seller_confirmation(receipt_num, bcb.bridge_w3.eth.accounts[1])
+    main()
+
+def buyer_confirm():
+    receipt_num = int(input("Please enter the receipt number you received for your basket: "))
+    print("Sending Confirmation from Buyer")
+    bcb.buyer_confirmation(receipt_num, bcb.bridge_w3.eth.accounts[2])
+    print("Bitcoins have been reserved!")
+    main()
+    
+def pay_for_item():
+    receipt_num = int(input("Please enter the receipt number you received for your basket: "))
+    print("Sending payment request")
+    bcb.pay_basket(receipt_num)
+    main()
+    
+def bitcoin_wallet_info():
+    curr = input("Do you want to check balance in 'usd' or 'btc'? ")
+    bcb.get_balance_btc(curr)
     main()
     
 if __name__ == "__main__":
