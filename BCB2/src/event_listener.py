@@ -1,73 +1,69 @@
-from web3 import Web3
 import threading
-import json
 import asyncio
 import time
-from bit import PrivateKeyTestnet
-import os
+from functions.bcb_functions import BitcoinBridgeGanache
+import random
 
 # ---------------------CONNECT TO SUPPLY CHAIN CONTRACT ON GANACHE---------------------
-# web3.py instance - Connectiong to Ganache App
-GANACHE_URL = "HTTP://127.0.0.1:7545"
-w3 = Web3(Web3.HTTPProvider(GANACHE_URL))
+# New instance of Bitcoin Bridge Class
+bcb = BitcoinBridgeGanache()
 
-if w3.isConnected():
-    print("\n[SUCCESS] Connected to the Supply Chain Ganache Blockchain Environment!")
-    
-GANACHE_URL2 = "HTTP://127.0.0.1:7546"
-w32 = Web3(Web3.HTTPProvider(GANACHE_URL2))
+bcb.connect()
 
-if w32.isConnected():
-    print("\n[SUCCESS] Connected to the Transaction Bridge Ganache Blockchain Environment!")
-    
-# Getting SC smart contract information
-with open('Contracts/SupplyChain.info', 'r') as file_object:
-    contract_info = file_object.readlines()
-
-supply_address = contract_info[0][:-1]
-supply_abi = json.loads(contract_info[1])
-
-# Getting TB smart contract information
-with open('Contracts/TransactionBridge.info', 'r') as file_object:
-    contract_info = file_object.readlines()
-
-bridge_address = contract_info[0][:-1]
-bridge_abi = json.loads(contract_info[1])
-
-# Set first address as deployer for contract
-w3.eth.default_account = w3.eth.accounts[0]
-w32.eth.default_account = w32.eth.accounts[0]
-
-# Start connecting to smart contracts
-print("\n[CONNECTING] Connecting to Supply Chain Contract...")
-
-supplychain = w3.eth.contract(
-    address = supply_address,
-    abi = supply_abi
+apparel_dict = {
+    1: 'Shirt',
+    2: 'T-Shirt',
+    3: 'Pants'
+}
+fabric_dict = {
+    1: 'Cotton',
+    2: 'Polyester'
+}
+receipts = set()
+clothes_tuple = (
+    (1,1),
+    (1,2),
+    (2,1),
+    (2,2),
+    (3,1),
+    (3,2)
 )
-print("\n[SUCCESS] Connected to Supply Chain Smart Contract...")
-
-print("\n[CONNECTING] Connecting to Transaction Bridge Contract...")
-
-transactionbridge = w32.eth.contract(
-    address = bridge_address,
-    abi = bridge_abi
-)
-print("\n[SUCCESS] Connected to Transaction Bridge Smart Contract...")
-
-# -----------------------------BTC TESTNET-----------------------------
-with open(os.path.join(os.getcwd(), "Wallet/wallet.info"), 'r') as file_obj:
-    accs = file_obj.readlines()
-accs[0] = accs[0][:-1]
-
-keys = []
-for acc in accs:
-    keys.append(PrivateKeyTestnet(acc))
 
 # -----------------------------MAIN PROGRAM-----------------------------
 print("\nListnening for new events...\n")
 
 # EVENT HANDLING FUNCTIONS
+def products_added(apparel, fabric, num_added):
+    """A function to handle the event of new products being added"""
+    print(f"""\nNew Product was added:
+          \r\tItem:{fabric_dict[fabric]} {apparel_dict[apparel]}\tNumber: {num_added}""")
+    
+
+def bought_items(num_buy):
+    """A function to handle the event of particular items being bought."""
+    # Getting random receipt number
+    receipt_number = random.randint(1,999999)
+    while receipt_number in receipts:
+        receipt_number = random.randint(1,999999)
+    receipts.add(receipt_number)
+    
+    item_id = [random.randint(1,100) for _ in range(6)]
+
+    prices = [bcb.get_product_info(apparel, fabric)[4] for apparel, fabric in clothes_tuple]
+    
+    for index, (apparel, fabric) in enumerate(clothes_tuple):
+        print(f"Item:{fabric_dict[fabric]} {apparel_dict[apparel]}\tNumber: {num_buy[index]}\tPrice: ${prices[index]/100}")
+    
+    bcb.create_basket(receipt_number)
+    
+    bcb.add_items_to_basket(receipt_number, item_id, prices)
+
+def defective_items(num_defective):
+    """A function to handle the event of removing defective items from the supply chain."""
+    print(f"""Removing the following items from the supply chain.""")
+    for index, (apparel, fabric) in enumerate(clothes_tuple):
+        print(f"Item:{fabric_dict[fabric]} {apparel_dict[apparel]}\tNumber: {num_defective[index]}")
+
 def transaction_created(receipt_number):
     """
     A target function to handle the event of a transaction being 
@@ -111,158 +107,9 @@ def payment_initiated(receipt_number, total):
     )
     # Send BTC Transaction
     print("Sending Bitcoin Transaction as payment...")
-    try:
-        tx_hash = keys[0].send([(keys[1].address, total/100, 'usd')])
-        print(tx_hash)
-    except Exception as err:
-        print("[ERROR] oops BTC transaction error!")
-
-def new_delivery_created(delivery_id, employee_address, supplier, material):
-    """
-    A target function to handle the event of a delivery order
-    created by the manufacturing plant.
-    """
-    print(
-        f"""\nDelivery Order Created:
-            \r\tDelivery ID: {delivery_id}
-            \r\tEmployee Address: {employee_address}
-            \r\tSupplier: {supplier}
-            \r\tMaterial Type: {material}"""
-    )
-
-def delivery_creation_failed(supplier, material, weight, cost, message):
-    """
-    A target function to handle the event of a a delovery order
-    failed by the manufacturing plant.
-    """
-    print(
-        f"""\nDelivery Creation Failed:
-            \r\tSupplier: {supplier}
-            \r\tMaterial Type: {material}
-            \r\tWeight of Materials: {weight}
-            \r\tCost of Materials:: {cost}
-            \r\tError Message: {message}"""
-    )
-
-def new_batch_created(batch_id, employee_address, fabric, apparel):
-    """
-    A target function to handle the event of a new batch being
-    created by the manufacturing plant.
-    """
-    print(
-        f"""\nNew Batch Created:
-            \r\tBatch ID: {batch_id}
-            \r\tEmployee Address: {employee_address}
-            \r\tFabric Type: {fabric}
-            \r\tApparel Type: {apparel}"""
-    )
-
-def batch_creation_failed(fabric, machine_id, message):
-    """
-    A target function to handle the event of a batch creation
-    failed by the manufacturing plant.
-    """
-    print(
-        f"""\nBatch Creation Failed:
-            \r\tBatch Fabric: {fabric}
-            \r\tMachine ID: {machine_id}
-            \r\tError Message: {message}"""
-    )
-
-def batch_completion_failed(batch_id, message):
-    """
-    A target function to handle the event of a batch
-    completion failed by the manufacturing plant.
-    """
-    print(
-        f"""\nBatch Completion Failed:
-            \r\tBatch ID: {batch_id}
-            \r\tError Message: {message}"""
-    )
-
-def batch_completed(batch_id, num_items):
-    """
-    A target function to handle the event of a batch being
-    completed by the manufacturing plant.
-    """
-    print(
-        f"""\nBatch Completed:
-            \r\tBatch ID: {batch_id}
-            \r\tNumber of Items: {num_items}"""
-    )
-
-def delivery_received(delivery_id):
-    """
-    A target function to handle the event of a delivery being 
-    received by a company
-    """
-    print(
-        f"""\nDelivery Received:
-            \r\tDelivery ID: {delivery_id}"""
-    )
-
-def delivery_cancelled(delivery_id):
-    """
-    A target function to handle the event of a delivery being 
-    cancelled by a company
-    """
-    print(
-        f"""\nDelivery Cancelled:
-            \r\tDelivery ID: {delivery_id}"""
-    )
-
-def new_items_created(item_start_id, item_end_id, fabric, item_type):
-    """
-    A target function to handle the event of items being created
-    by a completed batch
-    """
-    print(
-        f"""\nNew Items Created:
-            \r\tItem Start ID: {item_start_id}
-            \r\tItem End ID: {item_end_id}
-            \r\tFabric Type: {fabric}
-            \r\tItem Type: {item_type}"""
-    )
-
-def item_sold(item_id, receipt_number, date):
-    """
-    A target function to handle the event of an item being sold
-    """
-    print(
-        f"""\nNew Item Sold:
-            \r\tItem ID: {item_id}
-            \r\tReceipt Number: {receipt_number}
-            \r\tDate: {time.ctime(date)}"""
-    )
-    # Create a new transaction if receipt number is unique else
-    # add item to existing cart (transaction)
-    trans_state = transactionbridge.functions.get_state(receipt_number).call()
-    if trans_state != 0 and trans_state != 1:
-        print("[ERROR] Invalid Receipt Number...")
-        return
-    if trans_state == 0:
-        # Create a new transaction
-        print("Creating new transaction...")
-        tx_hash = transactionbridge.functions.create_transaction(receipt_number).transact()
-        tx_receipt = w32.eth.wait_for_transaction_receipt(tx_hash)
-    # Add item to transaction
-    print("Adding item to transaction...")
-    price = supplychain.functions.get_price(item_id).call()
-    tx_hash = transactionbridge.functions.add_items_to_transaction(receipt_number, [item_id], [price]).transact()
-    tx_receipt = w32.eth.wait_for_transaction_receipt(tx_hash)
-
-def item_returned(item_id, receipt_number, date, price):
-    """
-    A target function to handle the event of an item being returned
-    """
-    print(
-        f"""\nNew Item Returned:
-            \r\tItem ID: {item_id}
-            \r\tReceipt Number: {receipt_number}
-            \r\tDate: {time.ctime(date)}
-            \r\tPrice Refunded: ${price / 100}"""
-    )
     
+    bcb.send_btc(total)
+  
 def seller_ok(receipt_number, total):
     """
     A target function to handle the event of a seller confirming transaction
@@ -280,6 +127,62 @@ def buyer_ok(receipt_number, total):
           \rTotal: {total}""")
 
 # ASYNC FUNCTION LOOPS
+# event items_defective(uint256[6] num_defective);
+async def id_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every defective item removed from
+    the supply chain.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = defective_items,
+                args = (
+                    event['args']['num_defective'],
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
+# event items_bought(uint256[6] num_buy);
+async def ib_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every bunch of items bought 
+    in supply chain.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = bought_items,
+                args = (
+                    event['args']['num_buy'],
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
+# event added_products(ApparelType indexed apparel, FabricType indexed fabric, uint256 num_added);
+async def ap_loop(event_filter, poll_interval):
+    """
+    Asynchronous function to create new threads for every item added in  
+    supply chain.
+    """
+    
+    while True:
+        for event in event_filter.get_new_entries():
+            thread = threading.Thread(
+                target = products_added,
+                args = (
+                    event['args']['apparel'],
+                    event['args']['fabric'],
+                    event['args']['num_added']
+                )
+            )
+            thread.start()
+        await asyncio.sleep(poll_interval)
+
 # event SellerOk (uint256 indexed receipt_number, uint256 total);
 async def sellerok_loop(event_filter, poll_interval):
     """
@@ -392,261 +295,25 @@ async def payment_loop(event_filter, poll_interval):
             thread.start()
         await asyncio.sleep(poll_interval)
 
-# NewDeliveryCreated (uint256 indexed delivery_id, address employee_address, string supplier, MaterialType material);
-async def ndc_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every new delivery orders
-    successfully created.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = new_delivery_created,
-                args = (
-                    event['args']['delivery_id'],
-                    event['args']['employee_address'],
-                    event['args']['supplier'],
-                    event['args']['material']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# DeliveryCreationFailed (string supplier, uint8 material, uint256 weight, uint256 cost, string message);
-async def dcf_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every new delivery order
-    unsuccessfully created.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = delivery_creation_failed,
-                args = (
-                    event['args']['supplier'],
-                    event['args']['material'],
-                    event['args']['weight'],
-                    event['args']['cost'],
-                    event['args']['message']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# NewBatchCreated (uint256 indexed batch_id, address employee_address, BatchType fabric, ItemType apparel);
-async def nbc_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every new batch
-    created for completion by a manufacturing plant.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = new_batch_created,
-                args = (
-                    event['args']['batch_id'],
-                    event['args']['employee_address'],
-                    event['args']['fabric'],
-                    event['args']['apparel']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# BatchCreationFailed (uint8 fabric, uint256 machine_id, string message);
-async def bcrf_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every batch
-    creation failed by a manufacturing plant.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = batch_creation_failed,
-                args = (
-                    event['args']['fabric'],
-                    event['args']['machine_id'],
-                    event['args']['message']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# BatchCompletionFailed (uint256 indexed batch_id, string message);
-async def bcof_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every batch
-    completion failed by a manufacturing plant.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = batch_completion_failed,
-                args = (
-                    event['args']['batch_id'],
-                    event['args']['message']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# BatchCompleted (uint256 indexed batch_id, uint256 num_items);
-async def bc_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every batch
-    completed by a manufacturing plant.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = batch_completed,
-                args = (
-                    event['args']['batch_id'],
-                    event['args']['num_items']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# DeliveryReceived (uint256 indexed delivery_id);
-async def dr_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every delivery
-    cancelled by a company.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = delivery_received,
-                args = (
-                    event['args']['delivery_id'],
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# DeliveryCancelled( uint256 indexed delivery_id);
-async def dc_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every delivery
-    cancelled by a company.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = delivery_cancelled,
-                args = (
-                    event['args']['delivery_id'],
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-        
-# ItemReturned (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date, uint256 price);
-async def ir_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every item
-    returned by a customer.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = item_returned,
-                args = (
-                    event['args']['item_id'],
-                    event['args']['receipt_num'],
-                    event['args']['date'],
-                    event['args']['price']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# ItemSold (uint256 indexed item_id, uint256 indexed receipt_num, uint256 date);
-async def is_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for every item
-    sold to a customer.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = item_sold,
-                args = (
-                    event['args']['item_id'],
-                    event['args']['receipt_num'],
-                    event['args']['date']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
-# NewItemsCreated (uint256 indexed item_start_id, uint256 indexed item_end_id, BatchType fabric, ItemType item_type);
-async def nic_loop(event_filter, poll_interval):
-    """
-    Asynchronous function to create new threads for new items created
-    by a batch being completed.
-    """
-    
-    while True:
-        for event in event_filter.get_new_entries():
-            thread = threading.Thread(
-                target = new_items_created,
-                args = (
-                    event['args']['item_start_id'],
-                    event['args']['item_end_id'],
-                    event['args']['fabric'],
-                    event['args']['item_type']
-                )
-            )
-            thread.start()
-        await asyncio.sleep(poll_interval)
-
 # Main Function
 def main():
     # Creating filters for every event
-    ndc_filter = supplychain.events.NewDeliveryCreated().createFilter(fromBlock = 'latest')
-    dcf_filter = supplychain.events.DeliveryCreationFailed().createFilter(fromBlock = 'latest')
-    nbc_filter = supplychain.events.NewBatchCreated().createFilter(fromBlock = 'latest')
-    bcrf_filter = supplychain.events.BatchCreationFailed().createFilter(fromBlock = 'latest')
-    bcof_filter = supplychain.events.BatchCompletionFailed().createFilter(fromBlock = 'latest')
-    bc_filter = supplychain.events.BatchCompleted().createFilter(fromBlock = 'latest')
-    dr_filter = supplychain.events.DeliveryReceived().createFilter(fromBlock = 'latest')
-    dc_filter = supplychain.events.DeliveryCancelled().createFilter(fromBlock = 'latest')
-    nic_filter = supplychain.events.NewItemsCreated().createFilter(fromBlock = 'latest')
-    is_filter = supplychain.events.ItemSold().createFilter(fromBlock = 'latest')
-    ir_filter = supplychain.events.ItemReturned().createFilter(fromBlock = 'latest')
-    tc_filter = transactionbridge.events.TransactionCreated().createFilter(fromBlock = 'latest')
-    tu_filter = transactionbridge.events.TransactionUpdated().createFilter(fromBlock = 'latest')
-    tr_filter = transactionbridge.events.TransactionRefunded().createFilter(fromBlock = 'latest')
-    payment_filter = transactionbridge.events.PaymentInitiated().createFilter(fromBlock = 'latest')
-    sellerok_filter = transactionbridge.events.SellerOk().createFilter(fromBlock = 'latest')
-    buyerok_filter = transactionbridge.events.BuyerOk().createFilter(fromBlock = 'latest')
+    ap_filter = bcb.supply_chain_contract.events.added_products().createFilter(fromBlock = 'latest')
+    ib_filter = bcb.supply_chain_contract.events.items_bought().createFilter(fromBlock = 'latest')
+    id_filter = bcb.supply_chain_contract.events.items_defective().createFilter(fromBlock = 'latest')
+    tc_filter = bcb.bridge_contract.events.TransactionCreated().createFilter(fromBlock = 'latest')
+    tu_filter = bcb.bridge_contract.events.TransactionUpdated().createFilter(fromBlock = 'latest')
+    tr_filter = bcb.bridge_contract.events.TransactionRefunded().createFilter(fromBlock = 'latest')
+    payment_filter = bcb.bridge_contract.events.PaymentInitiated().createFilter(fromBlock = 'latest')
+    sellerok_filter = bcb.bridge_contract.events.SellerOk().createFilter(fromBlock = 'latest')
+    buyerok_filter = bcb.bridge_contract.events.BuyerOk().createFilter(fromBlock = 'latest')
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(
             asyncio.gather(
-                ndc_loop(ndc_filter, 2),
-                dcf_loop(dcf_filter, 2),
-                nbc_loop(nbc_filter, 2),
-                bcrf_loop(bcrf_filter, 2),
-                bcof_loop(bcof_filter, 2),
-                bc_loop(bc_filter, 2),
-                dr_loop(dr_filter, 2),
-                dc_loop(dc_filter, 2),
-                nic_loop(nic_filter, 2),
-                is_loop(is_filter, 2),
-                ir_loop(ir_filter, 2),
+                ap_loop(ap_filter, 2),
+                ib_loop(ib_filter, 2),
+                id_loop(id_filter, 2),
                 tc_loop(tc_filter, 2),
                 tu_loop(tu_filter, 2),
                 tr_loop(tr_filter, 2),

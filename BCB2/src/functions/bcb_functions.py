@@ -33,6 +33,8 @@ class BitcoinBridgeGanache:
         self.bridge_w3 = None
         self.bridge_contract = None
         # BITCOIN
+        self.btc_seller = None
+        self.btc_buyer = None
         
     def deploy_contracts(self) -> None:
         """Compiles, deploys and saves the supply chain and bitcoin bridge contracts onto
@@ -65,7 +67,7 @@ class BitcoinBridgeGanache:
         self.bridge_bytecode = contract_interface['bin']
         # getting the Contract abi
         self.bridge_abi = contract_interface['abi']
-        # DEPLOY SMART CONTRACT------------------------------------------------------
+        # DEPLOY SMART CONTRACT
         # web3.py instance - Connectiong to Ganache App
         self.supply_chain_w3 = Web3(Web3.HTTPProvider(self.SUPPLY_CHAIN_URL))
         self.bridge_w3 = Web3(Web3.HTTPProvider(self.BRIDGE_URL))
@@ -105,7 +107,7 @@ class BitcoinBridgeGanache:
         self.bridge_address = tx_receipt_bridge.contractAddress
 
         print("[SUCCESS] Transaction Bridge Contract Deployed!")
-        # SAVE CONTRACT INFO-----------------------------------------------------
+        # SAVE CONTRACT INFO
         # Supply Chain
         print("Saving Supply Chain Contract Info")
 
@@ -136,6 +138,15 @@ class BitcoinBridgeGanache:
             abi = self.bridge_abi
         )
         print('[SUCCESS] Transaction Bridge Contract Deployed Successfully!!!')
+        
+        # BITCOIN TESTNET
+        with open("wallet/wallet.info", 'r') as file_object:
+            accs = file_object.readlines()
+            accs[0] = accs[0][:-1]
+        self.buyer = PrivateKeyTestnet(accs[0])
+        self.seller = PrivateKeyTestnet(accs[1])
+        print('[SUCCESS] Connected to Bitcoin Testnet!')
+        
         
     def connect(self) -> None:
         "A method to connect to already deployed System"
@@ -175,6 +186,13 @@ class BitcoinBridgeGanache:
             abi = self.bridge_abi
         )
         print("[SUCCESS] Connected to Supply Chain / Transaction Bridge Smart Contracts!")
+        # BITCOIN TESTNET
+        with open("wallet/wallet.info", 'r') as file_object:
+            accs = file_object.readlines()
+            accs[0] = accs[0][:-1]
+        self.buyer = PrivateKeyTestnet(accs[0])
+        self.seller = PrivateKeyTestnet(accs[1])
+        print('[SUCCESS] Connected to Bitcoin Testnet!')
     
     def is_connected(self) -> bool:
         """Method used to check if we are connected to the Ganache Apps.
@@ -194,10 +212,11 @@ class BitcoinBridgeGanache:
     @staticmethod
     def print_instructions():
         "Prints the legends necessary to interact with smart contracts"
-        print("""The following is the legend which is used to interact with the supply chain contract:
+        print("""\nThe following is the legend which is used to interact with the supply chain contract:
               \rApparel: Shirt-> 1, T-Shirt-> 2, Pants-> 3
               \rFabric: Cotton-> 1, Polyester-> 2
-              \rBuy Items: [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]""")
+              \rThe option to buy clothes is ordered in the following manner
+              \rBuy Items: [Cotton Shirt, Polyester Shirt, Cotton T-Shirt, Polyester T-Shirt, Cotton Pants, Polyester Pants]\n""")
     
     
     # SUPPLY CHAIN CONTRACT METHODS--------------------------------------------------
@@ -480,7 +499,37 @@ class BitcoinBridgeGanache:
     # ---------------------------------------------------------------------------------
     
     # BITCOIN METHODS------------------------------------------------------------------
-    def send_btc(self):
-        pass
+    def get_balance_btc(self, currency: str) -> None:
+        """Gets the buyer and seller balances in either usd or btc\n
+        currency: 'usd' or 'btc'"""
+        currency = currency.lower()
+        if currency != 'usd' and currency != 'btc':
+            print("[ERROR] Currency should be only 'btc' or 'usd'!")
+            return
+        
+        print(f"""Current Balances [{currency}]\n
+        \r\tBuyer:\tAddress: {self.buyer.address}\t{self.buyer.get_balance(currency)}\n
+        \r\tSeller:\tAddress: {self.seller.address}\t{self.seller.get_balance(currency)}""")
+    
+    def send_btc(self, amount: int, reverse = False) -> bool:
+        """Sends 'amount', in US cents, worth of bitcoin from one account to another\n
+        by default sends from buyer to seller\n
+        if reverse = True then sends from seller to buyer.\n
+        amount: amount to send in cents (USD)"""
+        if type(amount) != int:
+            print("[ERROR] 'Amount' should be an integer!")
+            return False
+        
+        try:
+            if not reverse:
+                tx_hash = self.buyer.send([(self.seller.address, amount/100, 'usd')])
+                print(tx_hash)
+            else:
+                tx_hash = self.seller.send([(self.buyer.address, amount/100, 'usd')])
+                print(tx_hash)
+        except Exception:
+            print("[ERROR] Bitcoin transaction failed! Please try again!")
+            return False
+        return True
     
     # ---------------------------------------------------------------------------------
