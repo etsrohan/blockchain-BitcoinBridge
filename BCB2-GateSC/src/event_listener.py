@@ -92,15 +92,20 @@ def transaction_updated(receipt_number, total):
             \r\tNew Total Amount Due: ${total / 100}"""
     )
 
-def transaction_refunded(receipt_number):
+def transaction_refunded(receipt_number, total):
     """
     A target function to handle the event of a transaction being 
     refunded on transaction bridge.
     """
     print(
         f"""\Transaction Refunded:
-            \r\tReceipt Number: {receipt_number}"""
+            \r\tReceipt Number: {receipt_number}
+            \r\tRefund Amount: ${total/100}"""
     )
+    
+    # Send refund amount on BTC Network
+    print("Sending Bitcoin Transaction as refund...")
+    bcb.send_btc(total, reverse = True)
 
 def payment_initiated(receipt_number, total):
     """
@@ -278,6 +283,7 @@ async def tr_loop(event_filter, poll_interval):
                 target = transaction_refunded,
                 args = (
                     event['args']['receipt_number'],
+                    event['args']['total']
                 )
             )
             thread.start()

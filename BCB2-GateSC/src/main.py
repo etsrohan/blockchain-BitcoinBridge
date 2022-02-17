@@ -28,17 +28,19 @@ def main():
     print("""\n------------------------------------------------
     \rWelcome to the Bitcoin Bridge System Demo!
     \rPlease select from one of the following options:
-    \r\t1. Deploy System
-    \r\t2. Connect to an already deployed system
-    \r\t3. Instructions
-    \r\t4. Get Product Information
-    \r\t5. Add Products to Cart
-    \r\t6. Change Item Information
-    \r\t7. Add more Items in Supply Chain
-    \r\t8. Seller confirms payment
-    \r\t9. Buyer confirms payment
+    \r\t1.  [Admin] Deploy System
+    \r\t2.  Connect to an already deployed system
+    \r\t3.  Instructions
+    \r\t4.  Get Product Information
+    \r\t5.  Add Products to Cart
+    \r\t6.  [Admin] Change Item Information
+    \r\t7.  [Admin] Add more Items in Supply Chain
+    \r\t8.  Seller confirms payment
+    \r\t9.  Buyer confirms payment
     \r\t10. Pay for items in Cart
     \r\t11. Get Seller and Buyer Bitcoin Balances
+    \r\t12. Process a Refund
+    \r\t13. [Admin] Transfer Money (Between Seller/Buyer)
     \r------------------------------------------------\n
     """)
     
@@ -80,6 +82,12 @@ def main():
     elif choice == 11:
         print()
         bitcoin_wallet_info()
+    elif choice == 12:
+        print()
+        process_refund()
+    elif choice == 13:
+        print()
+        transfer_money()
     else:
         main()
 
@@ -160,6 +168,22 @@ def pay_for_item():
 def bitcoin_wallet_info():
     curr = input("Do you want to check balance in 'usd' or 'btc'? ")
     bcb.get_balance_btc(curr)
+    main()
+    
+def process_refund():
+    receipt_num = int(input("Please enter the receipt number you received for your basket: "))
+    print("Sending refund request!")
+    bcb.refund_basket(receipt_num)
+    main()
+
+def transfer_money():
+    amount = int(input("Please enter the amount of money you want to transfer (US Cents): "))
+    reverse = input("Do you want to send money from buyer to seller [y/n]? ")
+    if reverse.lower() == 'y':
+        reverse = False
+    else:
+        reverse = True
+    bcb.send_btc(amount, reverse)
     main()
     
 if __name__ == "__main__":

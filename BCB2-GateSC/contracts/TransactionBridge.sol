@@ -18,7 +18,7 @@ contract TransactionBridge {
     // EVENTS
     event TransactionCreated (uint256 indexed receipt_number);
     event TransactionUpdated (uint256 indexed receipt_number, uint256 total);
-    event TransactionRefunded (uint256 indexed receipt_number);
+    event TransactionRefunded (uint256 indexed receipt_number, uint256 total);
     event PaymentInitiated (uint256 indexed receipt_number, uint256 total);
     event SellerOk (uint256 indexed receipt_number, uint256 total);
     event BuyerOk (uint256 indexed receipt_number, uint256 total);
@@ -193,7 +193,8 @@ contract TransactionBridge {
         transactions[receipt_num].dates[2] = block.timestamp;
         // Emit an event to refund the transaction
         emit TransactionRefunded(
-            receipt_num
+            receipt_num,
+            transactions[receipt_num].total
         );
         return true;
     }
