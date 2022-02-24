@@ -21,7 +21,7 @@ chips_tuple = (
     (1,3),
     (2,3),
     (1,4),
-    (2,4),
+    (2,4)
 )
 
 def main():
@@ -44,7 +44,7 @@ def main():
     \r------------------------------------------------\n
     """)
     
-    choice = int(input("Please select an option from the above choices [1-11] or press 0 to exit: "))
+    choice = int(input("Please select an option from the above choices [1-13] or press 0 to exit: "))
     
     if choice == 0:
         print("\nExiting from Bitcoin Bridge System!")
